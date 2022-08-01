@@ -30,10 +30,7 @@ namespace KME3_Patcher
         }
         private void Window_ContentRendered(object sender, EventArgs e)
         {
-            if (File.Exists(System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip"))
-            {
-                File.Delete(System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip");
-            }
+            CheckTempFile(System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip");
         }
 
         public static string GetMD5Checksum(string filename)
@@ -48,23 +45,12 @@ namespace KME3_Patcher
             }
         }
 
-
         public static void  HostsFileAdd(string entry)
         {
+            string hostfile = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "system32\\drivers\\etc\\hosts");
 
+            CheckTempFile(System.IO.Path.GetTempPath() + "\\hosts");
 
-            var OSInfo = Environment.OSVersion;
-            string pathpart = "hosts";
-            if (OSInfo.Platform == PlatformID.Win32NT)
-            {
-                //is windows NT
-                pathpart = "system32\\drivers\\etc\\hosts";
-            }
-            string hostfile = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), pathpart);
-            if (File.Exists(System.IO.Path.GetTempPath() + "\\hosts"))
-            {
-                File.Delete(System.IO.Path.GetTempPath() + "\\hosts");
-            }
             File.Copy(hostfile, System.IO.Path.GetTempPath() + "\\hosts");
 
             string tales = entry;
@@ -85,7 +71,19 @@ namespace KME3_Patcher
             }
 
             File.Copy(System.IO.Path.GetTempPath() + "\\hosts", hostfile, true);
+        }
 
+        public static bool TestGameServer(string ipAddress = "127.0.0.1")
+        {
+            return true;
+        }
+
+        public static void CheckTempFile(string path)
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
         }
 
         private void Button_Click(object sender, RoutedEventArgs e)
@@ -111,14 +109,10 @@ namespace KME3_Patcher
             }
 
             string zipPath = System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip";
-            if (File.Exists(gameDirectoryPath + "\\binkw32.dll"))
-            {
-                File.Delete(gameDirectoryPath + "\\binkw32.dll");
-            }
-            if (File.Exists(gameDirectoryPath + "\\binkw23.dll"))
-            {
-                File.Delete(gameDirectoryPath + "\\binkw23.dll");
-            }
+
+            CheckTempFile(gameDirectoryPath + "\\binkw32.dll");
+            CheckTempFile(gameDirectoryPath + "\\binkw23.dll");
+
             ZipFile.ExtractToDirectory(zipPath, gameDirectoryPath);
 
             HostsFileAdd(ServerAddress.Text + " gosredirector.ea.com");
@@ -127,6 +121,5 @@ namespace KME3_Patcher
             MessageBox.Show(checksum);
             ServerAddress.Text = checksum;
         }
-
     }
 }
