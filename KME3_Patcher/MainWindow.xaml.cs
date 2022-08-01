@@ -94,7 +94,10 @@ namespace KME3_Patcher
             openFileDlg.DefaultExt = "MassEffect3.exe";
             openFileDlg.Filter = "Mass Effect 3 (MassEffect3.exe)|MassEffect3.exe";
             Nullable<bool> result = openFileDlg.ShowDialog();
-            if (result != true){return;}
+            if (result != true){
+                MessageBox.Show("Game nto found");
+                return;
+            }
 
             string gameDirectoryPath = System.IO.Path.GetDirectoryName(openFileDlg.FileName);
 
@@ -102,10 +105,12 @@ namespace KME3_Patcher
             webClient.DownloadFile("https://github.com/Erik-JS/masseffect-binkw32/releases/download/r4/me3_binkw32.zip", System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip");
 
             var checksum = GetMD5Checksum(System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip");
-            if (checksum != "4A838E04B9BEF86F99F3FC013B65C0BC") {return;}
+            if (checksum != "4A838E04B9BEF86F99F3FC013B65C0BC") {
+                MessageBox.Show("checksum doesent match");
+                return;
+            }
 
             string zipPath = System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip";
-
             if (File.Exists(gameDirectoryPath + "\\binkw32.dll"))
             {
                 File.Delete(gameDirectoryPath + "\\binkw32.dll");
@@ -116,11 +121,8 @@ namespace KME3_Patcher
             }
             ZipFile.ExtractToDirectory(zipPath, gameDirectoryPath);
 
-
             HostsFileAdd(ServerAddress.Text + " gosredirector.ea.com");
             HostsFileAdd(ServerAddress.Text + " kme.jacobtread.local");
-
-
 
             MessageBox.Show(checksum);
             ServerAddress.Text = checksum;
