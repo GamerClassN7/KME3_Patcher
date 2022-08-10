@@ -113,6 +113,58 @@ namespace KME3_Patcher
             }
         }
 
+        public static bool checkSPDLCs(string gameExecutablePath)
+        {
+            bool result = true;
+            string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(gameExecutablePath, @"..\..\BIOGame\DLC\"));
+            string[] folders = System.IO.Directory.GetDirectories(path, "*");
+
+            for (int index = 0; index < folders.Length; index++)
+            {
+                if ( folders[index].Replace(path, "").StartsWith("_")) {
+                    folders = folders.Where(w => w != folders[index]).ToArray();
+                    continue;
+                }
+                   
+                folders[index] = folders[index].Replace(path, "");
+            }
+            Array.Sort(folders);
+
+            string[] correctFolders = {"DLC_CON_MP1", "DLC_CON_MP2", "DLC_CON_MP3", "DLC_CON_MP4", "DLC_CON_MP5", "DLC_UPD_Patch01", "DLC_UPD_Patch02" };
+            Array.Sort(correctFolders);
+
+            if (!stringArrayEqual(folders, correctFolders))
+            {
+                result = false;
+            }
+
+            return result;
+        }       
+        
+        private void deactivateDLCs(string gameDirectoryPath)
+        {
+            bool result = true;
+            string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(gameDirectoryPath, @"..\..\BIOGame\DLC\"));
+            string[] folders = System.IO.Directory.GetDirectories(path, "*");
+            string[] correctFolders = {"DLC_CON_MP1", "DLC_CON_MP2", "DLC_CON_MP3", "DLC_CON_MP4", "DLC_CON_MP5", "DLC_UPD_Patch01", "DLC_UPD_Patch02" };
+
+            for (int index = 0; index < folders.Length; index++)
+            {
+                string dlcFolderName = folders[index].Replace(path, "");
+                if (dlcFolderName.StartsWith("_"))
+                {
+                    folders = folders.Where(w => w != folders[index]).ToArray();
+                    continue;
+                }
+
+                if (!correctFolders.Contains(dlcFolderName))
+                {
+                    Directory.Move(folders[index], path + "_" + dlcFolderName);
+                }
+            }
+
+        }
+
         private void PatchGame_Click(object sender, RoutedEventArgs e)
         {
             Microsoft.Win32.OpenFileDialog openFileDlg = new Microsoft.Win32.OpenFileDialog();
@@ -154,6 +206,16 @@ namespace KME3_Patcher
             HostsFileAdd(ServerAddress.Text + " gosredirector.ea.com");
             HostsFileAdd(ServerAddress.Text + " kme.jacobtread.local");
 
+            if (!checkSPDLCs(gameDirectoryPath))
+            {
+                if (MessageBox.Show("Single player DLC need to be disabled (not deleted) to fix most of MP Bugs", "SP DLC Detected", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                {
+                    deactivateDLCs(gameDirectoryPath);
+                    ServerStatusMessage.Content = "Failed SP DLCs Detected !";
+                    return;
+                }
+            }
+
             //MessageBox.Show(checksum
             ServerStatusMessage.Content = "Done";
         }
@@ -184,5 +246,28 @@ namespace KME3_Patcher
             PatchGame.IsEnabled = true;
 
         }
+        public static bool stringArrayEqual(string[] arr1, string[] arr2)
+        {
+            int N = arr1.Length;
+            int M = arr2.Length;
+
+            if (N != M) {
+                return false;
+            }
+
+            Array.Sort(arr1);
+            Array.Sort(arr2);
+
+            for (int i = 0; i < N; i++) {
+                if (arr1[i] != arr2[i]) {
+                    MessageBox.Show(arr1[i]);
+                    return false;
+                }
+            }
+
+            // If all elements were same.
+            return true;
+        }
     }
+
 }
