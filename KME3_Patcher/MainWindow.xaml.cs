@@ -31,9 +31,99 @@ namespace KME3_Patcher
             InitializeComponent();
             ServerAddress.TextChanged += new TextChangedEventHandler(ServerAddress_TextChanged);
         }
+
         private void Window_ContentRendered(object sender, EventArgs e)
         {
             CheckTempFile(System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip");
+        }
+
+        private void ServerAddress_TextChanged(object sender, EventArgs e)
+        {
+            if (ServerAddress.Text == "")
+            {
+                ServerStatusMessage.Content = "IP invalid";
+                return;
+            }
+
+            if (!ValidateIP(ServerAddress.Text))
+            {
+                ServerStatusMessage.Content = "IP invalid";
+                return;
+            }
+
+            ServerStatusMessage.Content = "Triing to conect to server";
+
+            if (!TestGameServer(System.Net.IPAddress.Parse(ServerAddress.Text)))
+            {
+                ServerStatusMessage.Content = "hostname/Ip is not walid";
+                return;
+            }
+
+            ServerStatusMessage.Content = "Server Valid";
+            PatchGame.IsEnabled = true;
+
+        }
+
+        private void PatchGame_Click(object sender, RoutedEventArgs e)
+        {
+            Microsoft.Win32.OpenFileDialog openFileDlg = new Microsoft.Win32.OpenFileDialog();
+            openFileDlg.DefaultExt = "MassEffect3.exe";
+            openFileDlg.Filter = "Mass Effect 3 (MassEffect3.exe)|MassEffect3.exe";
+            Nullable<bool> result = openFileDlg.ShowDialog();
+            if (result != true)
+            {
+                ServerStatusMessage.Content = "Game Not Found";
+                return;
+            }
+
+            string gameDirectoryPath = System.IO.Path.GetDirectoryName(openFileDlg.FileName);
+
+            ServerStatusMessage.Content = "Downloading Patch....";
+            WebClient webClient = new WebClient();
+            webClient.DownloadFile("https://github.com/Erik-JS/masseffect-binkw32/releases/download/r4/me3_binkw32.zip", System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip");
+
+            ServerStatusMessage.Content = "Verifing Patch....";
+            var checksum = GetMD5Checksum(System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip");
+            if (checksum != "4A838E04B9BEF86F99F3FC013B65C0BC")
+            {
+                ServerStatusMessage.Content = "Verification Failed";
+                return;
+            }
+
+            ServerStatusMessage.Content = "Appling Patch....";
+            string zipPath = System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip";
+            CheckTempFile(gameDirectoryPath + "\\binkw32.dll");
+            CheckTempFile(gameDirectoryPath + "\\binkw23.dll");
+            ZipFile.ExtractToDirectory(zipPath, gameDirectoryPath);
+
+            ServerStatusMessage.Content = "Testing Server Conection....";
+            if (!TestGameServer(System.Net.IPAddress.Parse(ServerAddress.Text)))
+            {
+                ServerStatusMessage.Content = "Conection test Failed";
+                return;
+            }
+
+            ServerStatusMessage.Content = "Writing Redirection....";
+            HostsFileAdd(ServerAddress.Text + " gosredirector.ea.com");
+            HostsFileAdd(ServerAddress.Text + " kme.jacobtread.local");
+
+            string[] dlcToDisable = checkSPDLCs(gameDirectoryPath);
+            if (dlcToDisable.Length > 1)
+            {
+                if (MessageBox.Show("Single player DLC need to be disabled (not deleted) to fix most of MP Bugs", "SP DLC Detected", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                {
+                    deactivateDLCs(gameDirectoryPath, dlcToDisable);
+                    ServerStatusMessage.Content = "SP DLCs Detected !";
+                }
+                else
+                {
+                    ServerStatusMessage.Content = "Failed SP DLCs Detecte !";
+                    return;
+                }
+            }
+
+            //MessageBox.Show(checksum
+            ServerStatusMessage.Content = "Done";
         }
 
         public static string GetMD5Checksum(string filename)
@@ -113,139 +203,48 @@ namespace KME3_Patcher
             }
         }
 
-        public static bool checkSPDLCs(string gameExecutablePath)
+        public static string[] checkSPDLCs(string gameExecutablePath)
         {
-            bool result = true;
             string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(gameExecutablePath, @"..\..\BIOGame\DLC\"));
             string[] folders = System.IO.Directory.GetDirectories(path, "*");
+            folders = folders.Where(w => w.StartsWith("_")).ToArray();
 
             for (int index = 0; index < folders.Length; index++)
-            {
-                if ( folders[index].Replace(path, "").StartsWith("_")) {
-                    folders = folders.Where(w => w != folders[index]).ToArray();
-                    continue;
-                }
-                   
+            {                
                 folders[index] = folders[index].Replace(path, "");
             }
-            Array.Sort(folders);
 
-            string[] correctFolders = {"DLC_CON_MP1", "DLC_CON_MP2", "DLC_CON_MP3", "DLC_CON_MP4", "DLC_CON_MP5", "DLC_UPD_Patch01", "DLC_UPD_Patch02" };
-            Array.Sort(correctFolders);
+            string[] correctFolders = { "__metadata", "DLC_CON_MP1", "DLC_CON_MP2", "DLC_CON_MP3", "DLC_CON_MP4", "DLC_CON_MP5", "DLC_UPD_Patch01", "DLC_UPD_Patch02" };
 
             if (!stringArrayEqual(folders, correctFolders))
             {
-                result = false;
+                return folders.Except(correctFolders).ToArray();
             }
 
-            return result;
+            return new string[] { };
         }       
         
-        private void deactivateDLCs(string gameDirectoryPath)
+        private static bool deactivateDLCs(string gameDirectoryPath, string[] dlcsToDisable)
         {
             bool result = true;
             string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(gameDirectoryPath, @"..\..\BIOGame\DLC\"));
             string[] folders = System.IO.Directory.GetDirectories(path, "*");
-            string[] correctFolders = {"DLC_CON_MP1", "DLC_CON_MP2", "DLC_CON_MP3", "DLC_CON_MP4", "DLC_CON_MP5", "DLC_UPD_Patch01", "DLC_UPD_Patch02" };
 
-            for (int index = 0; index < folders.Length; index++)
+            for (int index = 0; index < dlcsToDisable.Length; index++)
             {
-                string dlcFolderName = folders[index].Replace(path, "");
-                if (dlcFolderName.StartsWith("_"))
+                try
                 {
-                    folders = folders.Where(w => w != folders[index]).ToArray();
-                    continue;
+                    Directory.Move(System.IO.Path.Combine(path , dlcsToDisable[index]), System.IO.Path.Combine(path, ("_" + dlcsToDisable)));
                 }
-
-                if (!correctFolders.Contains(dlcFolderName))
+                catch (Exception)
                 {
-                    Directory.Move(folders[index], path + "_" + dlcFolderName);
+                    return false;
                 }
             }
 
+            return true;
         }
 
-        private void PatchGame_Click(object sender, RoutedEventArgs e)
-        {
-            Microsoft.Win32.OpenFileDialog openFileDlg = new Microsoft.Win32.OpenFileDialog();
-            openFileDlg.DefaultExt = "MassEffect3.exe";
-            openFileDlg.Filter = "Mass Effect 3 (MassEffect3.exe)|MassEffect3.exe";
-            Nullable<bool> result = openFileDlg.ShowDialog();
-            if (result != true){
-                ServerStatusMessage.Content = "Game Not Found";
-                return;
-            }
-
-            string gameDirectoryPath = System.IO.Path.GetDirectoryName(openFileDlg.FileName);
-
-            ServerStatusMessage.Content = "Downloading Patch....";
-            WebClient webClient = new WebClient();
-            webClient.DownloadFile("https://github.com/Erik-JS/masseffect-binkw32/releases/download/r4/me3_binkw32.zip", System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip");
-
-            ServerStatusMessage.Content = "Verifing Patch....";
-            var checksum = GetMD5Checksum(System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip");
-            if (checksum != "4A838E04B9BEF86F99F3FC013B65C0BC") {
-                ServerStatusMessage.Content = "Verification Failed";
-                return;
-            }
-
-            ServerStatusMessage.Content = "Appling Patch....";
-            string zipPath = System.IO.Path.GetTempPath() + "\\me3_binkw32.zip.zip";
-            CheckTempFile(gameDirectoryPath + "\\binkw32.dll");
-            CheckTempFile(gameDirectoryPath + "\\binkw23.dll");
-            ZipFile.ExtractToDirectory(zipPath, gameDirectoryPath);
-
-            ServerStatusMessage.Content = "Testing Server Conection....";
-            if (!TestGameServer(System.Net.IPAddress.Parse(ServerAddress.Text)))
-            {
-                ServerStatusMessage.Content = "Conection test Failed";
-                return;
-            }
-
-            ServerStatusMessage.Content = "Writing Redirection....";
-            HostsFileAdd(ServerAddress.Text + " gosredirector.ea.com");
-            HostsFileAdd(ServerAddress.Text + " kme.jacobtread.local");
-
-            if (!checkSPDLCs(gameDirectoryPath))
-            {
-                if (MessageBox.Show("Single player DLC need to be disabled (not deleted) to fix most of MP Bugs", "SP DLC Detected", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
-                {
-                    deactivateDLCs(gameDirectoryPath);
-                    ServerStatusMessage.Content = "Failed SP DLCs Detected !";
-                    return;
-                }
-            }
-
-            //MessageBox.Show(checksum
-            ServerStatusMessage.Content = "Done";
-        }
-
-        private void ServerAddress_TextChanged(object sender, EventArgs e)
-        {
-            if (ServerAddress.Text == "")
-            {
-                ServerStatusMessage.Content = "IP invalid";
-                return;
-            }
-
-            if (!ValidateIP(ServerAddress.Text))
-            {
-                ServerStatusMessage.Content = "IP invalid";
-                return;
-            }
-
-            ServerStatusMessage.Content = "Triing to conect to server";
-
-            if (!TestGameServer(System.Net.IPAddress.Parse(ServerAddress.Text)))
-            {
-                ServerStatusMessage.Content = "hostname/Ip is not walid";
-                return;
-            }
-
-            ServerStatusMessage.Content = "Server Valid";
-            PatchGame.IsEnabled = true;
-
-        }
         public static bool stringArrayEqual(string[] arr1, string[] arr2)
         {
             int N = arr1.Length;
@@ -260,7 +259,6 @@ namespace KME3_Patcher
 
             for (int i = 0; i < N; i++) {
                 if (arr1[i] != arr2[i]) {
-                    MessageBox.Show(arr1[i]);
                     return false;
                 }
             }
@@ -269,5 +267,4 @@ namespace KME3_Patcher
             return true;
         }
     }
-
 }
