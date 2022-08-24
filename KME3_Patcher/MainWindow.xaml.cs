@@ -77,7 +77,10 @@ namespace KME3_Patcher
                 return;
             }
 
-            string gameDirectoryPath = System.IO.Path.GetDirectoryName(openFileDlg.FileName);
+            string gameExePath = openFileDlg.FileName;
+            string gameDirectoryPath = System.IO.Path.GetDirectoryName(gameExePath);
+
+
 
             ServerStatusMessage.Content = "Downloading Patch....";
             WebClient webClient = new WebClient();
@@ -123,11 +126,18 @@ namespace KME3_Patcher
                 }
             }
 
-            int[] ports = new int[] { 3659, 5659, 6000 };
-            foreach (int port in ports)
+            int[] portsTCP = new int[] { 3478, 3479, 3480, 5223, 8080 };
+            foreach (int port in portsTCP)
             {
-                createFWRule(port.ToString(), port, "in");
-                createFWRule(port.ToString(), port);
+                createFWRule(port.ToString(), port, "in", "TCP", gameExePath);
+                //createFWRule(port.ToString(), port, "out" , "TCP", gameExePath);
+            }
+
+            int[] portsUdp = new int[] { 3074, 3478, 3479, 3658, 3659, 5659, 6000 };
+            foreach (int port in portsUdp)
+            {
+                createFWRule(port.ToString(), port, "in", "UDP", gameExePath);
+                //createFWRule(port.ToString(), port, "out", "UDP", gameExePath);
             }
 
             //MessageBox.Show(checksum
@@ -275,9 +285,12 @@ namespace KME3_Patcher
             return true;
         }
 
-        public void createFWRule(string name, int port, string direction = "out", string type = "UDP")
+        public void createFWRule(string name, int port, string direction = "out", string type = "UDP", string program = null)
         {
-            string str = "advfirewall firewall add rule name=" + "PocketRelay_" + name + " dir=" + direction + " action=allow protocol=UDP localport=" + port;
+            string str = "advfirewall firewall add rule name=" + "PocketRelay_" + direction + name + " dir=" + direction + " action=allow protocol=UDP localport=" + port;
+            if (!String.IsNullOrEmpty(program))
+                str = str + " program=\"" + program + "\"";
+
             ProcessStartInfo psi = new ProcessStartInfo();
             Process process = new Process();
 
