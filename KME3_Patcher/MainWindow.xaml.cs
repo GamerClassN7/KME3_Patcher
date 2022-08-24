@@ -18,6 +18,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 namespace KME3_Patcher
 {
@@ -120,6 +121,13 @@ namespace KME3_Patcher
                     ServerStatusMessage.Content = "Failed SP DLCs Detecte !";
                     return;
                 }
+            }
+
+            int[] ports = new int[] { 3659, 5659, 6000 };
+            foreach (int port in ports)
+            {
+                createFWRule(port.ToString(), port, "in");
+                createFWRule(port.ToString(), port);
             }
 
             //MessageBox.Show(checksum
@@ -265,6 +273,22 @@ namespace KME3_Patcher
 
             // If all elements were same.
             return true;
+        }
+
+        public void createFWRule(string name, int port, string direction = "out", string type = "UDP")
+        {
+            string str = "advfirewall firewall add rule name=" + "PocketRelay_" + name + " dir=" + direction + " action=allow protocol=UDP localport=" + port;
+            ProcessStartInfo psi = new ProcessStartInfo();
+            Process process = new Process();
+
+            psi.FileName = "netsh";
+            psi.WindowStyle = ProcessWindowStyle.Normal;
+            psi.Arguments = str;
+
+            process.StartInfo = psi;
+            process.Start();
+
+            process.WaitForExit();
         }
     }
 }
